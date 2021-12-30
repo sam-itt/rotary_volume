@@ -11,13 +11,9 @@ MODULE_DESCRIPTION("rotary encoder as volume control module");
 MODULE_ALIAS("rotary-volume");
 MODULE_LICENSE("GPL");
 
-static char *devicename = "rotary@4";
+static char *devicename = "rotary@";
 module_param(devicename, charp, 0);
 MODULE_PARM_DESC(devicename, "name of rotary input device");
-
-static int reltype = REL_MISC; // 0x09
-module_param(reltype, int, 0);
-MODULE_PARM_DESC(reltype, "type of relative event to listen for");
 
 static int count_per_press = 10;
 module_param(count_per_press, int, 0);
@@ -33,11 +29,12 @@ static void send_key(int key) {
 }
 
 int count = 0;
+int count2 = 0;
 
 static void rotary_event(struct input_handle *handle, unsigned int type, unsigned int code, int value) {
 //	printk(KERN_DEBUG pr_fmt("Event. Dev: %s, Type: %d, Code: %d, Value: %d\n"), dev_name(&handle->dev->dev), type, code, value);
 	if (type == EV_REL) {
-		if (code == reltype) {
+		if (code == REL_WHEEL) {
 			int i;
 			int inc = (value > 0) ? 1 : -1;
 			if ((inc > 0 && count < 0) || (inc < 0 && count > 0)) { // if change of direction reset count
@@ -46,11 +43,24 @@ static void rotary_event(struct input_handle *handle, unsigned int type, unsigne
 			for (i=0; i!=value; i+=inc) {
 				count += inc;
 				if (abs(count) >= count_per_press) {
-					send_key( (inc > 0) ? KEY_VOLUMEUP : KEY_VOLUMEDOWN);
+					send_key( (inc > 0) ? KEY_UP : KEY_DOWN);
 					count = 0;
 				}
 			}
-		}
+		} else if (code == REL_HWHEEL) {
+			int i;
+			int inc = (value > 0) ? 1 : -1;
+			if ((inc > 0 && count2 < 0) || (inc < 0 && count2 > 0)) { // if change of direction reset count
+				count2 = 0;
+			}
+			for (i=0; i!=value; i+=inc) {
+				count2 += inc;
+				if (abs(count2) >= count_per_press) {
+					send_key( (inc > 0) ? KEY_RIGHT : KEY_LEFT);
+					count = 0;
+				}
+			}
+		} 
 	}
 }
 
@@ -98,8 +108,8 @@ bool startsWith(const char *pre, const char *str) {
 bool matched = false;
 
 static bool rotary_match(struct input_handler *handler, struct input_dev *dev) {
-	if (matched)
-		return false;
+//	if (matched)
+//		return false;
 	matched = startsWith(devicename, dev->name);
 	return matched;
 }
@@ -144,6 +154,10 @@ static int __init button_init(void) {
 	button_dev->evbit[0] = BIT_MASK(EV_KEY);// | BIT_MASK(EV_REP);
 	set_bit(KEY_VOLUMEDOWN, button_dev->keybit);
 	set_bit(KEY_VOLUMEUP, button_dev->keybit);
+	set_bit(KEY_DOWN, button_dev->keybit);
+	set_bit(KEY_UP, button_dev->keybit);
+	set_bit(KEY_LEFT, button_dev->keybit);
+	set_bit(KEY_RIGHT, button_dev->keybit);
 
 	for (i=KEY_ESC; i<=KEY_KPDOT; i++) { // add a load of extra keys
 		set_bit(i, button_dev->keybit);
